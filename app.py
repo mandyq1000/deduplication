@@ -1,5 +1,6 @@
 import os
 import sys
+from connect_drive import list_files
 import time
 from zipfile import ZipFile
 import json
@@ -134,9 +135,7 @@ def transcribe_yt():
 api_key = st.secrets['api_key']
 
 
-def transcribe_upload(file):
-    filename = file
-
+def transcribe_upload(filename):
     def read_file(filename, chunk_size=5242880):
         with open(filename, "rb") as _file:
             while True:
@@ -224,8 +223,7 @@ def transcribe_upload(file):
 
     def text_matching(text_filename, folder_path):
         file1 = open(f'{text_filename}', 'r')
-        fl1 = file1\
-            .read().split()
+        fl1 = file1.read().split()
         dict_file1 = {}
         for i in fl1:
             if i not in dict_file1:
@@ -251,8 +249,10 @@ def transcribe_upload(file):
                     dotProduct += dict_file1[key] * dict_file2[key]
             distance = acos(dotProduct / int(mod_fl1 * mod_fl2))
             match = (1.57 - distance) / 1.57 * 100;
-            return match
+
             file2.close()
+            # file1.close()
+            return match
 
         names = []
         a = []
@@ -267,40 +267,45 @@ def transcribe_upload(file):
 
         file1.close()
 
+    text_matching(f"transcripts/{text_file}", "transcripts")
+
     summary_folder_path = r"C:\Users\ManishP\transcriber-app\summary"
     transcript_folder_path = r"C:\Users\ManishP\transcriber-app\transcripts"
     summary_match = text_matching(text_filename=f'summary/summary_{text_file}', folder_path=summary_folder_path)
+    print(summary_match)
 
-    def upload_to_drive():
-        headers = {
-            "Authorization": "Bearer ya29.a0ARrdaM-iyTRm_bNozcQoMPagahrGUaRm7J-PVWrQSrSezJw35mGiP2bb3VCoRVguGOE2RgBiYevSzOt14I5a48gXjTep5pwpg1osoL1vyvWCfRzooAPfa1xJemP_doV6-6csnVOjoH8OI4CFFYP4xgumlIMK"}
-        para = {
-            "name": filename,
-            "parents": ["16cZXDXhjKvHJFnRT-tmyQRFKZLM2xJVW"]
-        }
+    # def upload_to_drive():
+    #     headers = {
+    #         "Authorization": "Bearer ya29.a0ARrdaM-iyTRm_bNozcQoMPagahrGUaRm7J-PVWrQSrSezJw35mGiP2bb3VCoRVguGOE2RgBiYevSzOt14I5a48gXjTep5pwpg1osoL1vyvWCfRzooAPfa1xJemP_doV6-6csnVOjoH8OI4CFFYP4xgumlIMK"}
+    #     para = {
+    #         "name": filename,
+    #         "parents": ["16cZXDXhjKvHJFnRT-tmyQRFKZLM2xJVW"]
+    #     }
+    #
+    #     files = {
+    #         'data': ('metadata', json.dumps(para), 'application/json; charset=UTF-8'),
+    #         'file': open("./video.mp4", "rb")
+    #     }
+    #     r = requests.post(
+    #         "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
+    #         headers=headers,
+    #         files=files
+    #     )
+    #     print(r.text)
+    # list_files()
+    # st.success("File uploaded")
 
-        files = {
-            'data': ('metadata', json.dumps(para), 'application/json; charset=UTF-8'),
-            'file': open("./video.mp4", "rb")
-        }
-        r = requests.post(
-            "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
-            headers=headers,
-            files=files
-        )
-        print(r.text)
-        st.success("File uploaded")
-
-    if summary_match > 60:
+    if summary_match > 99:
         st.info("Topic Detection crosses our threshold. Starting Transcript match...")
         transcript_match = text_matching(text_filename=f'transcripts/{text_file}', folder_path=transcript_folder_path)
-        if transcript_match > 50:
+        print(transcript_match)
+        if transcript_match > 100:
             st.error("Cannot upload your file as it is a possible duplicate existing in our database.")
         else:
             st.success("File passes all validations. Uploading file to our database...")
-            upload_to_drive()
+            list_files("transcripts/harvey.txt")
     else:
-        st.spinner("Topic detection below our Threshold. uploading your file to database...")
+        st.success("Topic detection below our Threshold. uploading your file to database...")
 
 
 
@@ -340,7 +345,7 @@ if upload:
     # audio = my_clip.audio.write_audiofile(f"{file.name}.mp3")
     # print(audio)
     transcribe_upload(file.name)
-    st.success("File write successfull")
+    st.success("File write successful...")
 
     with open("transcription.zip", "rb") as zip_download:
         btn = st.download_button(
