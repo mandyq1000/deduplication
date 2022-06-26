@@ -1,6 +1,6 @@
 import os
 import sys
-from connect_drive import list_files
+from connect_drive import upload_transcript, upload_summary, upload_video
 import time
 from zipfile import ZipFile
 import json
@@ -136,6 +136,8 @@ api_key = st.secrets['api_key']
 
 
 def transcribe_upload(filename):
+    video_filename = filename
+
     def read_file(filename, chunk_size=5242880):
         with open(filename, "rb") as _file:
             while True:
@@ -196,30 +198,25 @@ def transcribe_upload(filename):
 
     text_file = filename.replace(".mp4", ".txt")
 
-    # save as txt removing stop words
+    # removing stop words from the transcript
     text = transcript_response.json()["text"]
     sw_nltk = stopwords.words('english')
     words = [word for word in text.split() if word.lower() not in sw_nltk]
     new_text = " ".join(words)
 
+    # saves the transcript as a txt file locally
     with open(os.path.join('transcripts', f'{text_file}'), 'w') as transcript_txt:
         transcript_txt.write(new_text)
         transcript_txt.close()
 
     summary = transcript_response.json()["iab_categories_result"]["summary"]
-    # keys = list(summary.keys())
-    # # for i in keys:
-    # #     print(i)
 
+    # saves the summary(topic detection) as a txt file locally
     with open(os.path.join('summary', f'summary_{text_file}'), 'w') as summary_txt:
         for key in summary.keys():
             print(str(key.split(">")).strip("[]"), file=summary_txt)
 
-    # with open(f'summary_{text_file}', 'w') as summary_txt:
-    #     for key in summary.keys():
-    #         print(str(key.split(">")).strip("[]"), file=summary_txt)
-
-    ### SUMMARY TRANSCRIPT MATCHING
+    # SUMMARY AND TRANSCRIPT MATCHING
 
     def text_matching(text_filename, folder_path):
         file1 = open(f'{text_filename}', 'r')
@@ -269,44 +266,26 @@ def transcribe_upload(filename):
 
     text_matching(f"transcripts/{text_file}", "transcripts")
 
-    summary_folder_path = r"C:\Users\ManishP\transcriber-app\summary"
-    transcript_folder_path = r"C:\Users\ManishP\transcriber-app\transcripts"
+    root_dir = os.path.dirname(os.path.abspath(__file__))
+    summary_folder_path = os.path.join(root_dir, 'summary')
+    transcript_folder_path = os.path.join(root_dir, 'transcripts')
     summary_match = text_matching(text_filename=f'summary/summary_{text_file}', folder_path=summary_folder_path)
     print(summary_match)
 
-    # def upload_to_drive():
-    #     headers = {
-    #         "Authorization": "Bearer ya29.a0ARrdaM-iyTRm_bNozcQoMPagahrGUaRm7J-PVWrQSrSezJw35mGiP2bb3VCoRVguGOE2RgBiYevSzOt14I5a48gXjTep5pwpg1osoL1vyvWCfRzooAPfa1xJemP_doV6-6csnVOjoH8OI4CFFYP4xgumlIMK"}
-    #     para = {
-    #         "name": filename,
-    #         "parents": ["16cZXDXhjKvHJFnRT-tmyQRFKZLM2xJVW"]
-    #     }
-    #
-    #     files = {
-    #         'data': ('metadata', json.dumps(para), 'application/json; charset=UTF-8'),
-    #         'file': open("./video.mp4", "rb")
-    #     }
-    #     r = requests.post(
-    #         "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
-    #         headers=headers,
-    #         files=files
-    #     )
-    #     print(r.text)
-    # list_files()
-    # st.success("File uploaded")
-
     if summary_match > 99:
-        st.info("Topic Detection crosses our threshold. Starting Transcript match...")
+        st.warning("Level 1 Validation failed. Initiating Level 2 Validation...")
         transcript_match = text_matching(text_filename=f'transcripts/{text_file}', folder_path=transcript_folder_path)
         print(transcript_match)
         if transcript_match > 100:
             st.error("Cannot upload your file as it is a possible duplicate existing in our database.")
         else:
-            st.success("File passes all validations. Uploading file to our database...")
-            list_files("transcripts/harvey.txt")
+            st.info("File passes all validations. Uploading file to our database...")
+            upload_transcript(f"transcripts/{text_file}")
+            upload_summary(f"summary/summary_{text_file}")
+            upload_video(video_filename)
+            st.success("Your File has been uploaded.")
     else:
         st.success("Topic detection below our Threshold. uploading your file to database...")
-
 
 
 # The App
@@ -316,7 +295,7 @@ def transcribe_upload(filename):
 api_key = st.secrets['api_key']
 
 # st.info('1. API is read ...')
-st.warning('Awaiting URL input in the sidebar.')
+st.warning('Awaiting input.')
 
 # Sidebar
 st.sidebar.header('Input parameter')
@@ -326,12 +305,7 @@ with st.sidebar.form(key='my_form'):
     submit_button = st.form_submit_button(label='Go')
 
 with st.sidebar.form(key='upload'):
-    file = st.file_uploader('Upload a file from your system')
-    # tfile = tempfile.NamedTemporaryFile(delete=False)
-    # print(tfile)
-    # tfile.write(tfile.read())
-    # my_clip = mp.VideoFileClip(r"{}".format(tfile))
-    # my_clip.audio.write_audiofile(r"my_result.mp3")
+    file = st.file_uploader('Upload a file from your system', type=["mp4"])
     upload = st.form_submit_button(label='upload')
 
 # Run custom functions if URL is entered
@@ -341,11 +315,8 @@ if submit_button:
 
 if upload:
     st.success(file)
-    # my_clip = mp.VideoFileClip(r"{}".format(file.name))
-    # audio = my_clip.audio.write_audiofile(f"{file.name}.mp3")
-    # print(audio)
     transcribe_upload(file.name)
-    st.success("File write successful...")
+    st.success("Local File write successful.")
 
     with open("transcription.zip", "rb") as zip_download:
         btn = st.download_button(
